@@ -136,40 +136,48 @@ class D:
 
     @staticmethod
     def simplify(func): #simplifies a term like combining powers, calculating the const of the term, etc.
-        i = re.search(r'(?P<f1>[a-wA-Zyz]+)(?P<pow1>\^[\d]+)?\(x\).*?(?<![a-wA-Z1-9yz/\^][(])(?P=f1)(?P<pow2>\^[\d]+)?(?P<x1>\(x\))',func)#to find 'f(x)...f(x)'
-        while i and i.group('f1') in D.deridict.keys():
-            power = 0 #total power of a factor in term like sin^3(x)
-            for j in [i.group('pow1'),i.group('pow2')]:
-                if j != None:
-                    power += int(j[1:])
+        i = re.search(r'(?<!([a-wA-Zyz\d/\^][(]))(?P<f1>[a-wA-Zyz]+)(?P<pow1>\^[\d]+)?\(x\).*?(?<!([a-wA-Zyz\d/\^][(]))(?P=f1)(?P<pow2>\^[\d]+)?(?P<x1>\(x\))',func)#to find 'f(x)...f(x)'
+        func_1 = ''
+        while i:
+            if i.group('f1') in D.deridict.keys():
+                power = 0 #total power of a factor in term like sin^3(x)
+                for j in [i.group('pow1'),i.group('pow2')]:
+                    if j != None:
+                        power += int(j[1:])
+                    else:
+                        power += 1
+                if i.end('pow1') == -1:
+                    pow1end = i.end('f1')
                 else:
-                    power += 1
-            if i.end('pow1') == -1:
-                pow1end = i.end('f1')
-            else:
-                pow1end = i.end('pow1')
-            if i.start('pow2') == -1:
-                pow2start = i.start('x1')
-                pow2end = pow2start
-            else:
-                pow2start = i.start('pow2')
-                pow2end = i.end('pow2')
-            check_mult = i.start('x1') - (pow2end-pow2start) - len(i.group('f1'))-1
-            if func[check_mult-1:check_mult+1] == '*-':
-                func = func[:check_mult-1] + func[check_mult:]
-                pow2start -= 1
-                pow2end -= 1
+                    pow1end = i.end('pow1')
+                if i.start('pow2') == -1:
+                    pow2start = i.start('x1')
+                    pow2end = pow2start
+                else:
+                    pow2start = i.start('pow2')
+                    pow2end = i.end('pow2')
+                check_mult = i.start('x1') - (pow2end-pow2start) - len(i.group('f1'))-1
+                if func[check_mult-1:check_mult+1] == '*-':
+                    func = func[:check_mult-1] + func[check_mult:]
+                    pow2start -= 1
+                    pow2end -= 1
+                    
+                if func[check_mult] == '*':
+                    func = func[:check_mult] + func[check_mult+1:]
+                    pow2start -= 1
+                    pow2end -=1
                 
-            if func[check_mult] == '*':
-                func = func[:check_mult] + func[check_mult+1:]
-                pow2start -= 1
-                pow2end -=1
-            
-            lf = len(func[i.start('f1'):i.end('f1')])
-            func = func[:i.start('f1')] + func[(pow1end+3):(pow2start-lf)] + func[(pow2end+3):]
-            func = i.group('f1')+'^'+str(power)+'(x)'+func
-            i = re.search(r'(?P<f1>[a-wA-Z^yz]+)(?P<pow1>\^[\d]+)?\(x\).*?(?P=f1)(?P<pow2>\^[\d]+)?(?P<x1>\(x\))',func)
+                lf = len(func[i.start('f1'):i.end('f1')])
+                func = func[:i.start('f1')] + func[(pow1end+3):(pow2start-lf)] + func[(pow2end+3):]
+                func = i.group('f1')+'^'+str(power)+'(x)'+func
+                i = re.search(r'(?<!([a-wA-Zyz\d/\^][(]))(?P<f1>[a-wA-Zyz]+)(?P<pow1>\^[\d]+)?\(x\).*?(?<!([a-wA-Zyz\d/\^][(]))(?P=f1)(?P<pow2>\^[\d]+)?(?P<x1>\(x\))',func)
+            else:
+                bracks = func[:i.end('f1')].count('(') - func[:i.end('f1')].count(')')
+                func_1 += (func[:i.end('f1')] + D.brackfunc(func[i.end('f1'):], brack=bracks))
+                func = func[i.end('f1')+ len(D.brackfunc(func[i.end('f1'):], brack=bracks)):]
+                i = re.search(r'(?<!([a-wA-Zyz\d/\^][(]))(?P<f1>[a-wA-Zyz]+)(?P<pow1>\^[\d]+)?\(x\).*?(?<!([a-wA-Zyz\d/\^][(]))(?P=f1)(?P<pow2>\^[\d]+)?(?P<x1>\(x\))',func)
 
+        func = func_1 + func
         const = 1 #calculating product of constants in term like 4*5
         m = re.search(r'(?<!\^)(?P<mult>\*)?(?P<n1>[\d]+)',func) #pattern to find constants in term
         while m:
@@ -197,6 +205,61 @@ class D:
         signstr = D.sign_manager(signstr)
         func = signstr + func
         return func
+
+    @staticmethod
+    def check_coeff(a,b):
+        coa = re.match(r'(?P<s1>[\+\-])?(?P<n1>\d+)\*',a)
+        cob = re.match(r'(?P<s1>[\+\-])?(?P<n1>\d+)\*',b)
+        if coa:
+            if not coa.group('s1'):
+                a_coeff = int(coa.group('n1'))
+                a = a[len(coa.group('n1'))+1:]
+            else:
+                a_coeff = int(coa.group('s1')+coa.group('n1'))
+                a = a[len(coa.group('s1'))+len(coa.group('s1'))+1:]
+        else:
+            if re.match(r'\-',a):
+                a_coeff = -1
+                a = a[1:]
+            else:
+                a_coeff = 1
+        if cob:
+            if not cob.group('s1'):
+                b_coeff = int(cob.group('n1'))
+                b = b[len(cob.group('n1'))+1:]
+            else:
+                b_coeff = int(cob.group('s1')+cob.group('n1'))
+                b = b[len(cob.group('s1'))+len(cob.group('s1'))+1:]
+        else:
+            if re.match(r'\-',b):
+                b_coeff = -1
+                b = b[1:]
+            else:
+                b_coeff = 1
+        a1 = a.split('*')
+        b1 = b.split('*')
+        check = True
+        for i in a1:
+            if i not in b1:
+                check = False
+            if check == False:
+                break
+        for j in b1:
+            if j not in a1:
+                check = False
+            if check == False:
+                break
+        if not check:
+            return (False,)
+        if check:
+            coeff = a_coeff + b_coeff
+            if coeff == 0:
+                return (True, '0')
+            elif coeff > 0:
+                return(True, '+' + str(coeff) + a.replace('*',''))
+            else:
+                return(True, str(coeff) + a.replace('*',''))
+            
         
     @staticmethod
     def fract_reducer(frac): # returns a rational p/q form of a float number having 2 decimal places
@@ -212,26 +275,28 @@ class D:
 
         return (int(num),int(den)) # returns a tuple of p,q where p/q = frac
     
-    def analyser(self):#separates functions according to + and - signs and appends them to self.flist
-        self.flist = re.split('(\+|\-)',self.f)
-        self.flist = list(filter(lambda s: s!='',self.flist))
+    def analyser(self, func=''):#separates functions according to + and - signs and appends them to self.flist
+        if not func:
+            func = self.f
+        flist = re.split(r'(\+|\-)',func)
+        flist = list(filter(lambda s: s!='',flist))
         nums_removed_list = [] # removes constants in the function as their derivative is 0
-        for i in range(len(self.flist)):
-            if re.fullmatch('[\d]+',self.flist[i]):
+        for i in range(len(flist)):
+            if re.fullmatch('[\d]+',flist[i]):
                 if i != 0:
                     del(nums_removed_list[-1])
             else:
-                nums_removed_list.append(self.flist[i])
+                nums_removed_list.append(flist[i])
         if nums_removed_list == []:
             self.__deri = '0'
-        self.flist = nums_removed_list
+        flist = nums_removed_list
         flst = []
-        for i in range(len(self.flist)):
-            if (self.flist[i] != '+' and self.flist[i] != '-') and i != 0:
-                flst.append(self.flist[i-1]+self.flist[i])
+        for i in range(len(flist)):
+            if (flist[i] != '+' and flist[i] != '-') and i != 0:
+                flst.append(flist[i-1]+flist[i])
             else:
-                flst.append(self.flist[i])
-        self.flist = flst        
+                flst.append(flist[i])
+        return flst
        
     def chainrule(self, func): # calculates d /dx (f(g(...(x))))
         cr = ''
@@ -312,26 +377,56 @@ class D:
         return pr
                        
             
-    def __show(self,remove_mult=True): #simplifies and returns the derivative string, self.__deri        
-        if self.__deri != '' and self.__deri[0] == '+':
-            self.__deri = self.__deri[1:]
-            
-        self.__deri = D.sign_manager(self.__deri) #simplify any ambigious signs in self.__deri
+    def __show(self): #simplifies and returns the derivative string, self.__deri
         
-        self.__deri = self.__deri.replace('+',' + ') #space added between signs to make it look nicer
-        self.__deri = self.__deri.replace('-',' - ')
-        remove_mult=True
-        if remove_mult:
-            self.__deri = re.sub(r'([\d]+)([*]1/)',r'\1/',self.__deri)
-            self.__deri = self.__deri.replace('*','') # turns all * into '' because * sign is ignored in a term
+        self.__deri = D.sign_manager(self.__deri) #simplify any ambigious signs in self.__deri
+        self.__deri = re.sub(r'([\d]+)([*]1/)',r'\1/',self.__deri)
+        self.__deri = self.__deri.replace('*','') # turns all * into '' because * sign is ignored in a term
         return self.__deri
+
+    def simplify_coeff(self):
+        terms = self.analyser(self.__deri)
+        terms = list(filter((lambda x: x!='+' and x!='-'), terms))
+        mterms = list(map(D.insert_mult,terms))
+        equal_terms = []
+        add_terms = []
+        for i in range(len(mterms)):
+            for j in (list(range(0,i))+list(range(i+1,len(mterms)))):
+                ch = D.check_coeff(mterms[i],mterms[j])
+                if ch[0]:
+                    if i not in equal_terms:
+                        if ch[1] != '0':
+                            add_terms.append(ch[1])
+                        equal_terms.append(i)
+                        equal_terms.append(j)
+        equal_terms = list(set(equal_terms))
+        equal_terms.sort(reverse = True)
+        for i in equal_terms:
+            del terms[i]
+        terms = terms + add_terms
+        dr = D.listjoin(terms,0,len(terms))
+        if dr == '':
+            dr = '0'
+        return dr
+
+    def quotientrule(self, u, v): #calculates d(u/v)
+        u1 = D(u)
+        v1 = D(v)
+        t1 = (v+'*('+u1.derivative()+')').replace(' ','')
+        t2 = (u+'*('+v1.derivative()+')').replace(' ','')
+        self.__deri = '(' +t1+ '-' +t2+ ')/(' +v+ ')^2'  #* present in str for ease in value calculation. Replace * after * is added even after 
+        return self.__show()
     
-    def derivative(self, remove_mult=True): #method that calculates the derivative of a function        
+    
+    def derivative(self): #method that calculates the derivative of a function        
         if '/' in self.f:
-            u,v = self.f.split("/")[0:2] #checks for quotient rule
+            u,v = self.f.split("/", 2) #checks for quotient rule
             return self.quotientrule(u, v)
+        
         self.f = D.insert_mult(self.f) #inserts * at appropriate places for productrule
-        self.analyser() #separates terms according to + and - signs and appends them to self.flist
+        
+        self.flist = self.analyser() #separates terms according to + and - signs and appends them to self.flist
+        
         for i in self.flist:
             if i == '+' or i == '-': #add the sign before a term directly to the derivative
                 self.__deri += '+'
@@ -340,18 +435,11 @@ class D:
             else:
                 self.__deri += self.productrule(i) #calculate the productrule of the term
                 
-        if remove_mult:
-            return self.__show() #returns the derivative as a string
-        else:
-            return self.__show(False)
-        
-    def quotientrule(self, u, v): #calculates d(u/v)
-        u1 = D(u)
-        v1 = D(v)
-        t1 = (v+'*('+u1.derivative()+')').replace(' ','')
-        t2 = (u+'*('+v1.derivative()+')').replace(' ','')
-        self.__deri = '(' +t1+ '-' +t2+ ')/(' +v+ ')^2'  #* present in str for ease in value calculation. Replace * after * is added even after 
-        return self.__show()
+        self.__deri = self.__show() #returns the derivative as a string
+        self.__deri = self.simplify_coeff() #sim
+        self.__deri = self.__deri.replace('+',' + ') #space added between signs to make it look nicer
+        self.__deri = self.__deri.replace('-',' - ')
+        return self.__deri
 
     def nth_deri(self,n): #calculates the nth derivative of a function
         nder = self.f
@@ -436,7 +524,7 @@ def GUI(): #GUI is written inside function to have a choice of using/not using G
 
             d1 = D(total_fx())
             f1x_out.delete(0,END)
-            f1x_out.insert(0,d1.derivative(False))
+            f1x_out.insert(0,d1.derivative())
         except SyntaxError:
            msg.showerror('Invalid Input!','Please enter correct f(x)')
            
@@ -467,6 +555,8 @@ def GUI(): #GUI is written inside function to have a choice of using/not using G
             fnx_out.insert(0,d2.nth_deri(n))
         except SyntaxError:
            msg.showerror('Invalid Input!','Please enter correct f(x)')
+        except ValueError:
+            msg.showerror('Invalid Input!','Please enter correct value of n')
         
     def get_tan(): #Calculates the tangent equation and shows it in appropriate box as output
         try:
@@ -476,14 +566,8 @@ def GUI(): #GUI is written inside function to have a choice of using/not using G
             m = round(slope,2)
             p,q = D.fract_reducer(m)
             c = int(q * D.fvalue(total_fx(),xval) - p * xval)
-            if q>0:
-                q1 = ' - '+str(q)+'y'
-            else:
-                q1 = ' + '+str(q)+'y'
-            if c>0:
-                c1 = ' + '+str(c)+' = 0 '
-            else:
-                c1 = ' - '+str(c)+' = 0 '
+            q1 = ' - '+str(q)+'y'
+            c1 = ' + '+str(c)+' = 0 '
             tan_eq = str(p)+'x'+q1+c1
             tan_eq = D.sign_manager(tan_eq)
 
@@ -501,18 +585,12 @@ def GUI(): #GUI is written inside function to have a choice of using/not using G
         try:
             xval = eval(x_coor.get())
             d1 = D(total_fx())
-            slope = -1/D.fvalue(d1.derivative(),xval)
+            slope = -1/(D.fvalue(d1.derivative(),xval))
             m = round(slope,2)
             p,q = D.fract_reducer(m)
             c = int(q * D.fvalue(total_fx(),xval) - p * xval)
-            if q>0:
-                q1 = ' - '+str(q)+'y'
-            else:
-                q1 = ' + '+str(q)+'y'
-            if c>0:
-                c1 = ' + '+str(c)+' = 0 '
-            else:
-                c1 = ' - '+str(c)+' = 0 '
+            q1 = ' - '+str(q)+'y'
+            c1 = ' + '+str(c)+' = 0 '
             nor_eq = str(p)+'x'+q1+c1
             nor_eq = D.sign_manager(nor_eq)
 
