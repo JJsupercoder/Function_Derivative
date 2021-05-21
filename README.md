@@ -7,5 +7,6 @@ Can differentiate:
 1. Basic functions(should be present in deridict) and constants
 2. Product rule d(uvw...)/dx
 3. Chain rule d /dx (f(g(...(x))))
-4. Combinations of 2 and 3
-5. Quotient rule, but only one times
+4. f^n(x), where n is an integer (all polynomial functions included)
+5. Combinations of 2,3 and 4
+6. Quotient rule, but only one times
